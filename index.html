@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>RunTrack: Shoe Mileage Tracker | Retire & Archive</title>
+  <title>RunTrack: Shoe Mileage Tracker</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -34,13 +34,21 @@
     }
     .action-icon:hover { background-color: #f3f4f6; }
     .action-icon.danger:hover { background-color: #fee2e2; color: #dc2626; }
+    .warning-banner {
+      background-color: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 0.875rem;
+      margin-bottom: 20px;
+    }
   </style>
 </head>
 <body class="bg-gradient-to-br from-slate-50 to-gray-100 font-sans antialiased">
 
   <div class="max-w-7xl mx-auto px-4 py-8 md:py-10">
     <!-- Header -->
-    <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
       <div>
         <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">
           <i class="fas fa-shoe-prints mr-2 text-indigo-500"></i>RunTrack
@@ -58,12 +66,21 @@
       </div>
     </div>
 
+    <!-- Warning banner about local storage -->
+    <div class="warning-banner flex items-start gap-3">
+      <i class="fas fa-info-circle text-amber-500 mt-0.5"></i>
+      <div class="flex-1 text-amber-800">
+        <strong>Your data is saved in this browser only.</strong> Clearing your browser cache or using a different browser/device will not show your shoes. We recommend exporting or signing up (coming soon) for backup.
+      </div>
+      <button id="dismissWarning" class="text-amber-600 hover:text-amber-800"><i class="fas fa-times"></i></button>
+    </div>
+
     <!-- Active Shoes -->
     <h2 class="text-xl font-semibold text-gray-700 mb-3 flex items-center gap-2"><i class="fas fa-running text-indigo-500"></i> Active Shoes</h2>
     <div id="shoesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
 
-    <!-- Add First Shoe Tile -->
-    <div id="emptyState" class="hidden flex-col items-center justify-center py-12 text-center bg-white rounded-3xl shadow-sm border-2 border-dashed border-indigo-200 cursor-pointer hover:bg-indigo-50 transition" onclick="document.getElementById('addShoeBtn').click()">
+    <!-- Add First Shoe Tile (shown when no active shoes) -->
+    <div id="emptyState" class="flex flex-col items-center justify-center py-12 text-center bg-white rounded-3xl shadow-sm border-2 border-dashed border-indigo-200 cursor-pointer hover:bg-indigo-50 transition" onclick="document.getElementById('addShoeBtn').click()">
       <i class="fas fa-plus-circle text-5xl text-indigo-300 mb-3"></i>
       <p class="text-gray-500 text-lg font-medium">Add your first running shoe</p>
       <p class="text-gray-400 text-sm mt-1">Tap to get started</p>
@@ -80,7 +97,7 @@
     </div>
   </div>
 
-  <!-- MODALS (unchanged) -->
+  <!-- MODALS (same as before) -->
   <div id="addShoeModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl">
       <div class="flex justify-between items-center border-b px-6 py-4">
@@ -185,6 +202,7 @@
         brandSelect.appendChild(option);
       });
     }
+
     function updateModels() {
       const brand = document.getElementById('brandSelect').value;
       const modelSelect = document.getElementById('modelSelect');
@@ -205,26 +223,28 @@
 
     function loadData() {
       const stored = localStorage.getItem('runtrack_shoes');
-      if (stored) shoesArray = JSON.parse(stored);
-      else {
-        const demoEntries1 = [{ date: getTodayDate(), miles: 4.2 }, { date: getPastDate(5), miles: 6.0 }];
-        const demoEntries2 = [{ date: getTodayDate(), miles: 8.5 }];
-        shoesArray = [
-          { id: generateId(), name: "Nike Air Zoom Pegasus 40", totalMileage: 10.2, entries: demoEntries1, archived: false },
-          { id: generateId(), name: "Adidas Ultraboost Light", totalMileage: 8.5, entries: demoEntries2, archived: false }
-        ];
-        recalcTotalFromEntries(shoesArray[0]); recalcTotalFromEntries(shoesArray[1]);
+      if (stored) {
+        shoesArray = JSON.parse(stored);
+      } else {
+        // Start completely empty – no demo shoes
+        shoesArray = [];
       }
-      shoesArray.forEach(shoe => { if (shoe.archived === undefined) shoe.archived = false; if (!shoe.entries) shoe.entries = []; recalcTotalFromEntries(shoe); });
+      // Ensure each shoe has necessary fields
+      shoesArray.forEach(shoe => {
+        if (shoe.archived === undefined) shoe.archived = false;
+        if (!shoe.entries) shoe.entries = [];
+        recalcTotalFromEntries(shoe);
+      });
       const storedCustom = localStorage.getItem('runtrack_custom_shoes_log');
       customShoesLog = storedCustom ? JSON.parse(storedCustom) : [];
     }
+
     function recalcTotalFromEntries(shoe) {
       const total = shoe.entries.reduce((sum, e) => sum + (parseFloat(e.miles) || 0), 0);
       shoe.totalMileage = parseFloat(total.toFixed(1));
     }
+
     function getTodayDate() { return new Date().toISOString().split('T')[0]; }
-    function getPastDate(daysAgo) { let d = new Date(); d.setDate(d.getDate() - daysAgo); return d.toISOString().split('T')[0]; }
     function saveToLocal() {
       localStorage.setItem('runtrack_shoes', JSON.stringify(shoesArray));
       localStorage.setItem('runtrack_custom_shoes_log', JSON.stringify(customShoesLog));
@@ -266,8 +286,6 @@
       const displayMileage = convertToDisplay(shoe.totalMileage).toFixed(1);
       const unitLabel = currentUnit === "km" ? "km" : "mi";
       const archivedClass = isArchived ? 'archived-card' : '';
-      
-      // Determine action icons
       let actionIcons = '';
       if (isArchived) {
         actionIcons = `
@@ -292,7 +310,6 @@
           </div>
         `;
       }
-
       return `
         <div class="shoe-card bg-white rounded-2xl shadow-md border border-gray-100 ${archivedClass}" data-shoe-id="${shoe.id}" data-archived="${isArchived}">
           <div class="p-5 flex flex-col items-center text-center">
@@ -319,27 +336,21 @@
     }
 
     function attachTileEvents() {
-      // Log run buttons
       document.querySelectorAll('.log-run-btn').forEach(btn => {
         btn.addEventListener('click', (e) => { e.stopPropagation(); openMileageModal(btn.dataset.id); });
       });
-      // Details buttons
       document.querySelectorAll('.details-btn').forEach(btn => {
         btn.addEventListener('click', (e) => { e.stopPropagation(); openGraphModal(btn.dataset.id); });
       });
-      // Retire buttons
       document.querySelectorAll('.retire-btn').forEach(btn => {
         btn.addEventListener('click', (e) => { e.stopPropagation(); retireShoe(btn.dataset.id); });
       });
-      // Restore buttons
       document.querySelectorAll('.restore-btn').forEach(btn => {
         btn.addEventListener('click', (e) => { e.stopPropagation(); restoreShoe(btn.dataset.id); });
       });
-      // Delete buttons
       document.querySelectorAll('.delete-btn').forEach(btn => {
         btn.addEventListener('click', (e) => { e.stopPropagation(); deleteShoePermanently(btn.dataset.id); });
       });
-      // Card click (for logging mileage on active shoes only)
       document.querySelectorAll('.shoe-card').forEach(card => {
         const isArchived = card.dataset.archived === 'true';
         if (!isArchived) {
@@ -460,6 +471,11 @@
 
     function escapeHtml(str) { return str.replace(/[&<>]/g, function(m) { if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
 
+    // Dismiss warning banner
+    document.getElementById('dismissWarning').onclick = () => {
+      document.querySelector('.warning-banner').style.display = 'none';
+    };
+
     // Event listeners
     document.getElementById('addShoeBtn').onclick = () => {
       document.getElementById('addShoeModal').classList.remove('hidden');
@@ -501,6 +517,7 @@
       icon.className = archivedVisible ? 'fas fa-chevron-down' : 'fas fa-chevron-right';
     };
 
+    // Initialize
     populateBrandDropdown();
     loadData();
     setUnit('miles');
