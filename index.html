@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>RunTrack: Shoe Mileage Tracker | km / miles</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    * { transition: all 0.2s ease; }
+    .shoe-card { transition: transform 0.15s ease, box-shadow 0.2s; }
+    .shoe-card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.15); }
+    .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(3px); }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .toggle-active { background-color: #6366f1; color: white; border-color: #6366f1; }
+    .toggle-inactive { background-color: #f3f4f6; color: #4b5563; border-color: #d1d5db; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-gray-100 font-sans antialiased">
+
+  <div class="max-w-7xl mx-auto px-4 py-8 md:py-10">
+    <!-- Header with unit toggle -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <div>
+        <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">
+          <i class="fas fa-shoe-prints mr-2 text-indigo-500"></i>RunTrack
+        </h1>
+        <p class="text-gray-500 text-sm mt-1">smart mileage tracker for your running shoes</p>
+      </div>
+      <div class="flex gap-3 items-center">
+        <!-- Unit Toggle -->
+        <div class="bg-gray-100 rounded-xl p-1 flex shadow-inner">
+          <button id="unitMilesBtn" class="px-4 py-1.5 text-sm font-semibold rounded-lg transition-all toggle-active">Miles</button>
+          <button id="unitKmBtn" class="px-4 py-1.5 text-sm font-semibold rounded-lg transition-all toggle-inactive">Kilometers</button>
+        </div>
+        <button id="addShoeBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-6 rounded-2xl shadow-md transition-all flex items-center gap-2">
+          <i class="fas fa-plus-circle"></i> Add Shoe
+        </button>
+      </div>
+    </div>
+
+    <div id="shoesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
+    <div id="emptyState" class="hidden flex-col items-center justify-center py-16 text-center bg-white rounded-3xl shadow-sm border border-gray-100 mt-6">
+      <i class="fas fa-running text-5xl text-gray-300 mb-3"></i>
+      <p class="text-gray-400 text-lg">No shoes yet — tap "Add New Shoe" to start tracking</p>
+    </div>
+  </div>
+
+  <!-- ADD SHOE MODAL (brand + model) -->
+  <div id="addShoeModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-all">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+      <div class="flex justify-between items-center border-b px-6 py-4">
+        <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-plus-circle text-indigo-500 mr-2"></i>Add Running Shoe</h2>
+        <button class="closeModalBtn text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+      </div>
+      <div class="p-6">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">1. Select brand</label>
+          <select id="brandSelect" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-400 outline-none">
+            <option value="">-- Choose a brand --</option>
+          </select>
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">2. Select shoe model</label>
+          <select id="modelSelect" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-400 outline-none" disabled>
+            <option value="">-- First choose a brand --</option>
+          </select>
+        </div>
+        <div class="border-t border-gray-200 my-4"></div>
+        <div class="mb-5">
+          <label class="block text-sm font-medium text-gray-700 mb-2">✨ Or enter custom shoe name</label>
+          <input type="text" id="customShoeName" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-400 outline-none" placeholder="e.g., Saucony Endorphin Speed 3">
+        </div>
+        <div class="flex gap-3 justify-end mt-6">
+          <button class="closeModalBtn px-4 py-2 border border-gray-300 rounded-xl text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button id="confirmAddShoe" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-medium">Add Shoe</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOG MILEAGE MODAL (unit aware) -->
+  <div id="logMileageModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+      <div class="px-6 py-4 border-b">
+        <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-road text-indigo-500 mr-2"></i>Log mileage</h2>
+      </div>
+      <div class="p-6">
+        <p class="text-gray-600 mb-3" id="logShoeNameDisplay"></p>
+        <label class="block text-sm font-semibold text-gray-700 mb-1" id="mileageLabel">Total miles completed today</label>
+        <input type="number" id="mileageInput" step="0.1" min="0" class="w-full border border-gray-300 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-indigo-400 outline-none" placeholder="e.g., 5.2">
+        <div class="flex gap-3 justify-end mt-6">
+          <button id="closeLogModal" class="px-4 py-2 border rounded-xl text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button id="confirmLogMileage" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-medium">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GRAPH MODAL -->
+  <div id="graphModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-xl">
+      <div class="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+        <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-chart-line text-indigo-500 mr-2"></i>Mileage progress</h2>
+        <button id="closeGraphModalBtn" class="text-gray-400 text-2xl hover:text-gray-600">&times;</button>
+      </div>
+      <div class="p-6">
+        <p id="graphShoeName" class="font-semibold text-gray-700 text-lg mb-4"></p>
+        <canvas id="mileageChart" width="400" height="300" style="max-height: 320px; width: 100%"></canvas>
+        <div class="text-xs text-gray-400 text-center mt-4">X: date of run &nbsp;|&nbsp; Y: <span id="graphYLabel">miles</span></div>
+        <div class="mt-5 text-center text-sm text-gray-500" id="chartEmptyMsg"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- DATA & CONVERSION ----------
+    let shoesArray = [];
+    let customShoesLog = [];
+    let currentShoeForMileage = null;
+    let currentChart = null;
+    let currentUnit = "miles"; // "miles" or "km"
+    const MILES_TO_KM = 1.60934;
+
+    function convertToDisplay(miles) {
+      if (currentUnit === "km") return miles * MILES_TO_KM;
+      return miles;
+    }
+    function convertToStore(displayValue) {
+      if (currentUnit === "km") return displayValue / MILES_TO_KM;
+      return displayValue;
+    }
+
+    function generateId() { return Date.now() + '-' + Math.random().toString(36).substr(2, 8); }
+
+    // Shoe database (brand + models)
+    const shoeDatabase = {
+      "Nike": ["Air Zoom Pegasus 40", "Vomero 17", "Structure 25", "Revolution 6", "Winflo 10"],
+      "Adidas": ["Ultraboost Light", "Adizero Boston 12", "Solarboost 4", "Supernova Rise", "Adios 8"],
+      "Asics": ["Gel-Nimbus 25", "Gel-Kayano 30", "Novablast 4", "GT-2000 12", "Magic Speed 3"],
+      "Brooks": ["Ghost 15", "Glycerin 20", "Adrenaline GTS 23", "Launch 10", "Hyperion Max"],
+      "Hoka": ["Clifton 9", "Bondi 8", "Mach 5", "Rincon 3", "Speedgoat 5"],
+      "Saucony": ["Triumph 21", "Endorphin Speed 3", "Ride 16", "Kinvara 14", "Peregrine 13"],
+      "New Balance": ["Fresh Foam 1080v13", "FuelCell Rebel v4", "880v14", "Hierro v7", "More v4"],
+      "Puma": ["Deviate Nitro 2", "Velocity Nitro 2", "Magnify Nitro 2", "ForeverRun Nitro"]
+    };
+
+    function populateBrandDropdown() {
+      const brandSelect = document.getElementById('brandSelect');
+      brandSelect.innerHTML = '<option value="">-- Choose a brand --</option>';
+      Object.keys(shoeDatabase).forEach(brand => {
+        const option = document.createElement('option');
+        option.value = brand;
+        option.textContent = brand;
+        brandSelect.appendChild(option);
+      });
+    }
+
+    function updateModels() {
+      const brand = document.getElementById('brandSelect').value;
+      const modelSelect = document.getElementById('modelSelect');
+      if (!brand || !shoeDatabase[brand]) {
+        modelSelect.innerHTML = '<option value="">-- First choose a brand --</option>';
+        modelSelect.disabled = true;
+        return;
+      }
+      modelSelect.disabled = false;
+      modelSelect.innerHTML = '<option value="">-- Select a model --</option>';
+      shoeDatabase[brand].forEach(model => {
+        const option = document.createElement('option');
+        option.value = model;
+        option.textContent = model;
+        modelSelect.appendChild(option);
+      });
+    }
+
+    // Load/Save
+    function loadData() {
+      const storedShoes = localStorage.getItem('runtrack_shoes');
+      if (storedShoes) shoesArray = JSON.parse(storedShoes);
+      else {
+        const demoEntries1 = [{ date: getTodayDate(), miles: 4.2 }, { date: getPastDate(5), miles: 6.0 }];
+        const demoEntries2 = [{ date: getTodayDate(), miles: 8.5 }];
+        shoesArray = [
+          { id: generateId(), name: "Nike Air Zoom Pegasus 40", totalMileage: 10.2, entries: demoEntries1 },
+          { id: generateId(), name: "Adidas Ultraboost Light", totalMileage: 8.5, entries: demoEntries2 }
+        ];
+        recalcTotalFromEntries(shoesArray[0]); recalcTotalFromEntries(shoesArray[1]);
+      }
+      const storedCustomLog = localStorage.getItem('runtrack_custom_shoes_log');
+      customShoesLog = storedCustomLog ? JSON.parse(storedCustomLog) : [];
+      shoesArray.forEach(shoe => {
+        if (!shoe.entries) shoe.entries = [];
+        recalcTotalFromEntries(shoe);
+      });
+    }
+
+    function recalcTotalFromEntries(shoe) {
+      const total = shoe.entries.reduce((sum, e) => sum + (parseFloat(e.miles) || 0), 0);
+      shoe.totalMileage = parseFloat(total.toFixed(1));
+    }
+
+    function getTodayDate() { return new Date().toISOString().split('T')[0]; }
+    function getPastDate(daysAgo) { let d = new Date(); d.setDate(d.getDate() - daysAgo); return d.toISOString().split('T')[0]; }
+
+    function saveToLocal() {
+      localStorage.setItem('runtrack_shoes', JSON.stringify(shoesArray));
+      localStorage.setItem('runtrack_custom_shoes_log', JSON.stringify(customShoesLog));
+    }
+
+    function getShoeImageSVG() {
+      return `<svg class="w-16 h-16 mx-auto" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19 8L22 10L19 12L16 10L19 8Z" fill="#94A3B8" stroke="#475569" stroke-width="0.8"/>
+        <path d="M6 14L3 10L8 8L12 12L10 16L6 14Z" fill="#CBD5E1" stroke="#475569" stroke-width="0.8"/>
+        <path d="M5 13L7 15L12 13L9 9L5 13Z" fill="#94A3B8"/>
+        <circle cx="7.5" cy="12.5" r="1.2" fill="#334155"/>
+        <path d="M16 12L18 14L15 16L13 13L16 12Z" fill="#A0AEC0" stroke="#475569" stroke-width="0.5"/>
+      </svg>`;
+    }
+
+    function renderShoes() {
+      const grid = document.getElementById('shoesGrid');
+      const emptyState = document.getElementById('emptyState');
+      if (!shoesArray.length) {
+        grid.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+      grid.innerHTML = shoesArray.map(shoe => {
+        const displayMileage = convertToDisplay(shoe.totalMileage).toFixed(1);
+        const unitLabel = currentUnit === "km" ? "km" : "mi";
+        return `
+          <div class="shoe-card bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden cursor-pointer" data-shoe-id="${shoe.id}">
+            <div class="p-5 flex flex-col items-center text-center">
+              <div class="bg-indigo-50 rounded-full p-3 w-24 h-24 flex items-center justify-center mb-3">
+                ${getShoeImageSVG()}
+              </div>
+              <h3 class="font-bold text-gray-800 text-lg leading-tight">${escapeHtml(shoe.name)}</h3>
+              <div class="mt-2 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-full px-4 py-1.5">
+                <span class="text-indigo-800 font-bold text-xl">${displayMileage}</span>
+                <span class="text-indigo-600 text-sm"> ${unitLabel}</span>
+              </div>
+              <div class="flex gap-2 w-full mt-4">
+                <button class="log-run-btn flex-1 bg-gray-100 hover:bg-indigo-100 text-gray-700 font-medium py-2 rounded-xl text-sm transition flex items-center justify-center gap-1" data-id="${shoe.id}">
+                  <i class="fas fa-plus-circle text-indigo-500 text-xs"></i> Log Run
+                </button>
+                <button class="details-btn flex-1 bg-gray-50 hover:bg-purple-50 border border-gray-200 text-gray-700 font-medium py-2 rounded-xl text-sm transition flex items-center justify-center gap-1" data-id="${shoe.id}">
+                  <i class="fas fa-chart-simple text-purple-500"></i> Details
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.querySelectorAll('.log-run-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openMileageModal(btn.dataset.id);
+        });
+      });
+      document.querySelectorAll('.details-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openGraphModal(btn.dataset.id);
+        });
+      });
+      document.querySelectorAll('.shoe-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.log-run-btn') || e.target.closest('.details-btn')) return;
+          openMileageModal(card.dataset.shoeId);
+        });
+      });
+    }
+
+    function openMileageModal(shoeId) {
+      const shoe = shoesArray.find(s => s.id === shoeId);
+      if (!shoe) return;
+      currentShoeForMileage = shoeId;
+      document.getElementById('logShoeNameDisplay').innerHTML = `<i class="fas fa-shoe-prints mr-1"></i> ${escapeHtml(shoe.name)}`;
+      document.getElementById('mileageLabel').innerHTML = `Total ${currentUnit === "km" ? "kilometers" : "miles"} completed today`;
+      document.getElementById('mileageInput').value = '';
+      document.getElementById('logMileageModal').classList.remove('hidden');
+      document.getElementById('logMileageModal').style.display = 'flex';
+    }
+
+    function addMileageToShoe(shoeId, displayMilesVal) {
+      const shoe = shoesArray.find(s => s.id === shoeId);
+      if (!shoe) return false;
+      let miles = convertToStore(displayMilesVal);
+      if (isNaN(miles) || miles <= 0) return false;
+      if (!shoe.entries) shoe.entries = [];
+      shoe.entries.push({ date: getTodayDate(), miles: parseFloat(miles.toFixed(2)) });
+      recalcTotalFromEntries(shoe);
+      saveToLocal();
+      renderShoes();
+      return true;
+    }
+
+    function openGraphModal(shoeId) {
+      const shoe = shoesArray.find(s => s.id === shoeId);
+      if (!shoe) return;
+      document.getElementById('graphShoeName').innerHTML = `<i class="fas fa-chart-line mr-1"></i> ${escapeHtml(shoe.name)} — mileage history`;
+      const ctx = document.getElementById('mileageChart').getContext('2d');
+      if (currentChart) currentChart.destroy();
+      const entries = shoe.entries || [];
+      if (entries.length === 0) {
+        document.getElementById('chartEmptyMsg').innerHTML = '📊 No mileage entries yet. Tap "Log Run" to add your first run!';
+        currentChart = new Chart(ctx, {
+          type: 'line',
+          data: { labels: ['No data'], datasets: [{ label: currentUnit === "km" ? 'km' : 'miles', data: [0], borderColor: '#cbd5e1' }] }
+        });
+      } else {
+        document.getElementById('chartEmptyMsg').innerHTML = '';
+        const sorted = [...entries].sort((a,b) => new Date(a.date) - new Date(b.date));
+        const labels = sorted.map(e => e.date);
+        const dataInDisplay = sorted.map(e => convertToDisplay(e.miles));
+        currentChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: currentUnit === "km" ? 'Kilometers per run' : 'Miles per run',
+              data: dataInDisplay,
+              borderColor: '#6366f1',
+              backgroundColor: 'rgba(99,102,241,0.05)',
+              borderWidth: 3,
+              pointBackgroundColor: '#8b5cf6',
+              pointRadius: 5,
+              tension: 0.2,
+              fill: true
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+              y: { beginAtZero: true, title: { display: true, text: currentUnit === "km" ? 'Kilometers' : 'Miles' } },
+              x: { title: { display: true, text: 'Date' } }
+            }
+          }
+        });
+      }
+      document.getElementById('graphYLabel').innerText = currentUnit === "km" ? "km" : "miles";
+      document.getElementById('graphModal').classList.remove('hidden');
+      document.getElementById('graphModal').style.display = 'flex';
+    }
+
+    function addShoe(shoeName, isCustom = false) {
+      if (!shoeName || shoeName.trim() === "") return false;
+      shoeName = shoeName.trim();
+      const newId = generateId();
+      shoesArray.push({ id: newId, name: shoeName, totalMileage: 0, entries: [] });
+      if (isCustom) customShoesLog.push({ name: shoeName, addedAt: new Date().toISOString(), id: newId });
+      saveToLocal();
+      renderShoes();
+      return true;
+    }
+
+    function escapeHtml(str) { return str.replace(/[&<>]/g, function(m) { if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+
+    function closeAllModals() {
+      ['addShoeModal', 'logMileageModal', 'graphModal'].forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.add('hidden');
+        el.style.display = '';
+      });
+    }
+
+    // Unit toggle logic
+    function setUnit(unit) {
+      currentUnit = unit;
+      // Update button styles
+      const milesBtn = document.getElementById('unitMilesBtn');
+      const kmBtn = document.getElementById('unitKmBtn');
+      if (unit === 'miles') {
+        milesBtn.classList.add('toggle-active');
+        milesBtn.classList.remove('toggle-inactive');
+        kmBtn.classList.add('toggle-inactive');
+        kmBtn.classList.remove('toggle-active');
+      } else {
+        kmBtn.classList.add('toggle-active');
+        kmBtn.classList.remove('toggle-inactive');
+        milesBtn.classList.add('toggle-inactive');
+        milesBtn.classList.remove('toggle-active');
+      }
+      // Update labels
+      const mileageLabel = document.getElementById('mileageLabel');
+      if (mileageLabel) mileageLabel.innerHTML = `Total ${unit === "km" ? "kilometers" : "miles"} completed today`;
+      const graphY = document.getElementById('graphYLabel');
+      if (graphY) graphY.innerText = unit === "km" ? "km" : "miles";
+      // Re-render shoes and if a graph is open, refresh it
+      renderShoes();
+      if (document.getElementById('graphModal').style.display === 'flex' && currentGraphShoeId) {
+        openGraphModal(currentGraphShoeId);
+      }
+    }
+
+    let currentGraphShoeId = null;
+    // Override openGraphModal to store current shoe id
+    const originalOpenGraph = openGraphModal;
+    window.openGraphModal = function(shoeId) {
+      currentGraphShoeId = shoeId;
+      originalOpenGraph(shoeId);
+    };
+    openGraphModal = window.openGraphModal;
+
+    // Event listeners
+    document.getElementById('addShoeBtn').onclick = () => {
+      document.getElementById('addShoeModal').classList.remove('hidden');
+      document.getElementById('addShoeModal').style.display = 'flex';
+      document.getElementById('brandSelect').value = '';
+      document.getElementById('modelSelect').innerHTML = '<option value="">-- First choose a brand --</option>';
+      document.getElementById('modelSelect').disabled = true;
+      document.getElementById('customShoeName').value = '';
+    };
+    document.getElementById('brandSelect').addEventListener('change', updateModels);
+    document.getElementById('confirmAddShoe').onclick = () => {
+      const brand = document.getElementById('brandSelect').value;
+      const model = document.getElementById('modelSelect').value;
+      const custom = document.getElementById('customShoeName').value.trim();
+      let shoeToAdd = null;
+      if (brand && model) shoeToAdd = `${brand} ${model}`;
+      else if (custom) shoeToAdd = custom;
+      if (shoeToAdd) {
+        addShoe(shoeToAdd, !(brand && model));
+        closeAllModals();
+      } else alert("Please select a brand+model or enter a custom shoe name.");
+    };
+    document.getElementById('confirmLogMileage').onclick = () => {
+      const val = parseFloat(document.getElementById('mileageInput').value);
+      if (isNaN(val) || val <= 0) alert("Enter a positive number");
+      else if (currentShoeForMileage) { addMileageToShoe(currentShoeForMileage, val); closeAllModals(); }
+    };
+    document.getElementById('closeLogModal').onclick = closeAllModals;
+    document.getElementById('closeGraphModalBtn').onclick = closeAllModals;
+    document.querySelectorAll('.closeModalBtn').forEach(btn => btn.addEventListener('click', closeAllModals));
+    window.onclick = (e) => { if (e.target.classList.contains('modal-backdrop') || ['addShoeModal','logMileageModal','graphModal'].includes(e.target.id)) closeAllModals(); };
+
+    // Unit toggle buttons
+    document.getElementById('unitMilesBtn').onclick = () => setUnit('miles');
+    document.getElementById('unitKmBtn').onclick = () => setUnit('km');
+
+    // Initialize
+    populateBrandDropdown();
+    loadData();
+    setUnit('miles'); // default
+    renderShoes();
+    console.log("Custom shoes log (future DB update):", customShoesLog);
+  </script>
+</body>
+</html>
